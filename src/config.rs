@@ -23,7 +23,11 @@ pub struct Config {
     pub tab_renaming_plugins: Vec<String>,
     pub auto_titles: bool,
     pub lowercase_titles: bool,
+    /// Longest tab title, in columns, for tabs that are not focused; 0 = no limit.
+    pub max_title_length: usize,
     pub tab_status: bool,
+    /// Report each agent's logo as the pane's `$logo` sidebar token.
+    pub sidebar_logos: bool,
     pub running_time: bool,
     /// The filter the bar opens with: one of `SCOPES`, "all" unless set.
     pub scope: &'static str,
@@ -96,6 +100,11 @@ impl Config {
             tab_renaming_plugins: strings(get("tab_renaming_plugins")),
             auto_titles: get("auto_titles").map(|v| v.is_true()).unwrap_or(true),
             lowercase_titles: get("lowercase_titles").map(|v| v.is_true()).unwrap_or(false),
+            max_title_length: get("max_title_length")
+                .and_then(py_int)
+                .map(|v| v.clamp(0, 80) as usize)
+                .unwrap_or(0),
+            sidebar_logos: get("sidebar_logos").map(|v| v.is_true()).unwrap_or(false),
             tab_status: get("tab_status").map(|v| v.is_true()).unwrap_or(false),
             running_time: get("running_time").map(|v| !v.is_false()).unwrap_or(true),
             scope: get("scope")
@@ -170,6 +179,16 @@ mod tests {
             for value in ["false", "\"true\"", "1", "null"] {
                 assert!(!pick(&with(key, value), key), "{} = {}", key, value);
             }
+        }
+    }
+
+    #[test]
+    fn max_title_length_is_a_bounded_count_and_off_by_default() {
+        assert_eq!(Config::default().max_title_length, 0);
+        assert_eq!(with("max_title_length", "24").max_title_length, 24);
+        assert_eq!(with("max_title_length", "500").max_title_length, 80);
+        for value in ["-3", "\"x\"", "null", "[]"] {
+            assert_eq!(with("max_title_length", value).max_title_length, 0, "max_title_length = {}", value);
         }
     }
 

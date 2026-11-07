@@ -747,6 +747,7 @@ pub fn candidates(snapshot: &Value, owned: &Map, follow_new_sessions: bool) -> V
 pub struct AutoTitles {
     pub enabled: bool,
     pub lowercase_titles: bool,
+    pub max_title_length: usize,
     pub follow_new_sessions: bool,
     pub reader: TranscriptReader,
     pub owned: Map,
@@ -764,6 +765,7 @@ impl AutoTitles {
         let mut titles = AutoTitles {
             enabled: false,
             lowercase_titles: false,
+            max_title_length: 0,
             follow_new_sessions: false,
             reader: TranscriptReader::default(),
             owned: Map::new(),
@@ -778,6 +780,7 @@ impl AutoTitles {
         let transcript = pystr::lower(&transcript);
         self.enabled = config.auto_titles && !["0", "false", "no", "off"].contains(&transcript.as_str());
         self.lowercase_titles = config.lowercase_titles;
+        self.max_title_length = config.max_title_length;
         self.follow_new_sessions = config.follow_new_sessions;
     }
 
@@ -845,6 +848,7 @@ impl AutoTitles {
             }
         }
         let found = candidates(&snapshot.borrow(), &self.owned, self.follow_new_sessions);
+        let focused_tab = snapshot.borrow().get("focused_tab_id").as_str().map(str::to_string);
         let live: Vec<String> = found.iter().filter_map(|(_, c)| c.session.clone()).collect();
         self.reader.retain(&live);
         for (tab_id, candidate) in found {
@@ -856,6 +860,10 @@ impl AutoTitles {
             }
             if self.lowercase_titles {
                 title = pystr::lower(&title);
+            }
+            // Only the focused tab shows its whole title; the rest stay short.
+            if self.max_title_length > 0 && focused_tab.as_deref() != Some(tab_id.as_str()) {
+                title = truncate(&title, self.max_title_length as isize);
             }
             let title_value = Value::str(title.clone());
             let record = || {
@@ -1616,6 +1624,37 @@ mod tests {
             t.apply();
             assert_eq!(t.rename_calls(), vec![("w1:t9".to_string(), "repair été api".to_string())], "{}", source);
         }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn max_title_length_shortens_all_but_the_focused_tab() {
+        let mut t = Titles::new();
+        t.titles.configure(&config(r#"{"max_title_length": 10}"#));
+        t.set_title("Repair the login flow");
+        t.edit(|s| {
+            s.as_dict_mut().unwrap().insert("focused_tab_id", Value::str("w1:t1"));
+        });
+        t.apply();
+        assert_eq!(t.calls(), vec!["Repair th…"]);
+        // Focus moves here: the whole title shows, still owned by the watcher.
+        t.edit(|s| {
+            s.as_dict_mut().unwrap().insert("focused_tab_id", Value::str("w1:t9"));
+        });
+        t.apply();
+        t.apply();
+        assert_eq!(t.calls(), vec!["Repair th…", "Repair the login flow"]);
+        // And it shrinks again once focus leaves.
+        t.edit(|s| {
+            s.as_dict_mut().unwrap().insert("focused_tab_id", Value::str("w1:t1"));
+        });
+        t.apply();
+        t.apply();
+        assert_eq!(t.calls(), vec!["Repair th…", "Repair the login flow", "Repair th…"]);
+        // A limit of 0 means no limit.
+        t.titles.configure(&config(r#"{"max_title_length": 0}"#));
+        t.apply();
+        assert_eq!(t.label(), Value::str("Repair the login flow"));
     }
 
     #[cfg(unix)]

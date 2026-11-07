@@ -361,6 +361,26 @@ impl HerdrClient {
         .map(|_| ())
     }
 
+    /// Set (or with `None` clear) the `$logo` token of a pane for the sidebar.
+    pub fn report_pane_logo(&mut self, pane_id: &str, logo: Option<char>) -> Result<()> {
+        const SOURCE: &str = "herdr-bar-icons";
+        let (value, token_arg) = match logo {
+            Some(c) => (Value::str(c.to_string()), format!("logo={}", c)),
+            None => (Value::Null, "logo".to_string()),
+        };
+        let flag = if logo.is_some() { "--token" } else { "--clear-token" };
+        self.call(
+            "pane.report_metadata",
+            dict(&[
+                ("pane_id", Value::str(pane_id)),
+                ("source", Value::str(SOURCE)),
+                ("tokens", dict(&[("logo", value)])),
+            ]),
+            &["pane", "report-metadata", pane_id, "--source", SOURCE, flag, &token_arg],
+        )
+        .map(|_| ())
+    }
+
     pub fn focus_workspace(&mut self, workspace_id: &str) -> Result<()> {
         self.call(
             "workspace.focus",

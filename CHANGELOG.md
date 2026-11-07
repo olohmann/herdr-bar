@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Show GitHub's Octicon `copilot` (U+F4B8) as the GitHub Copilot logo instead of
+  the icon font's mark; it needs a Nerd Font or another font with Octicons.
+
+- Add `sidebar_logos`: the watcher reports each agent's logo as the pane's
+  `$logo` metadata token, so herdr's own sidebar can show it. Off by default.
+
+- Add `max_title_length` to cap generated tab titles. Tabs that are not focused
+  show the shortened title with `…`; the focused tab shows its whole title.
+  Off by default.
+
 - Add GitHub Copilot CLI as an `auto_titles` source. Task names come from
   `<intent> - GitHub Copilot` terminal titles, with the branding removed.
   Session IDs, when available, keep ownership tied to the same session;

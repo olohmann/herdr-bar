@@ -534,13 +534,19 @@ pub fn watch(lock_fd: Option<i64>) -> i32 {
                 let config = Config::load();
                 titles.configure(&config);
                 tabs.configure(&config);
-                if !(titles.enabled || tabs.enabled) {
+                if !(titles.enabled || tabs.enabled || config.sidebar_logos) {
                     tabs.clear();
                     events.close();
                     return Ok(Some(0));
                 }
                 let first = tabs.snapshot()?;
                 snapshot = titles.apply(&mut tabs, first)?;
+                if config.sidebar_logos && crate::icons::enabled(&config.agent_icons) {
+                    for (pane, logo) in crate::icons::sidebar_changes(&snapshot.borrow()) {
+                        // Display-only: a pane that closed meanwhile is not an error.
+                        let _ = tabs.client.client.report_pane_logo(&pane, logo);
+                    }
+                }
                 next_poll = now + INTERVAL;
             } else {
                 snapshot = tabs.snapshot()?;

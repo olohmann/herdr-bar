@@ -214,6 +214,10 @@ window (or restart the terminal) to load it. The bar and the tab watcher
 detect the font locally and fall back to colored text labels (bar) or the
 status glyph alone (tabs) when it is unavailable. Neither installs fonts for you.
 
+GitHub Copilot uses GitHub's own Octicon (U+F4B8) rather than the icon
+font's mark, so a Nerd Font (or any font with Octicons) must be your terminal's
+font for it to show.
+
 Set `"agent_icons": "font"` to force logos (for example over SSH when the font
 is installed on your local terminal), or `"agent_icons": "none"` for text only.
 The demo uses the icon font and tabs already named for their tasks.
@@ -391,6 +395,8 @@ Optional. Write `config.json` in the plugin config directory
 | `tab_renaming_plugins` | `[]` | additional plugin IDs that suppress all automatic tab writes when enabled |
 | `auto_titles` | `true` | Claude, Codex, Copilot, Pi, OmO and OpenCode task titles for unnamed tabs, suppressed by competing naming plugins; `false` opts out |
 | `lowercase_titles` | `false` | lowercase generated task titles; changes apply without a restart and custom names keep their case |
+| `max_title_length` | `0` | longest generated tab title in columns (1-80, `…` marks the cut); the focused tab always shows its whole title, so moving focus expands one tab and shortens the previous one. `0` means no limit; changes apply within two seconds |
+| `sidebar_logos` | `false` | `true` reports each agent's logo as the pane's `$logo` token, shown in herdr's sidebar once an agent row lists it (`["$logo", "agent", "state_text"]` under `[ui.sidebar.agents]`). Needs the icon font (`agent_icons`) and a running watcher; panes without a known logo carry no token |
 | `follow_new_sessions` | `false` | `true` lets the next Claude, Codex, Copilot, Pi, OmO or OpenCode session in a pane take over the task title written for the one before it, after `/clear`, a restart or a new terminal; a tab you renamed stays yours |
 | `tab_status` | `false` | opt in to agent logos and status glyphs in tab names; `false` restores labels still owned by the watcher |
 | `running_time` | `true` | per-row running time (`47s`, `2h04m`); `false` hides it and skips the per-pane `process_info`/`ps` reading, so the bar opens faster |

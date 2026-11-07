@@ -18,12 +18,16 @@ pub const VENDORS: &[&str] = &[
     "amp", "devin", "qodercli", "glm",
 ];
 
+/// GitHub's own Copilot mark, the Octicon `copilot`, which Nerd Fonts carry.
+/// It stands in for the icon font's Copilot glyph.
+pub const COPILOT_OCTICON: char = '\u{f4b8}';
+
 pub fn logo(index: usize) -> char {
     char::from_u32(0xE1A0 + index as u32).unwrap()
 }
 
 pub fn is_logo(c: char) -> bool {
-    (0xE1A0..0xE1A0 + VENDORS.len() as u32).contains(&(c as u32))
+    c == COPILOT_OCTICON || (0xE1A0..0xE1A0 + VENDORS.len() as u32).contains(&(c as u32))
 }
 
 thread_local! {
@@ -141,7 +145,37 @@ pub fn logo_for(agent: Option<&str>) -> Option<char> {
         "open-code" => "opencode",
         other => other,
     };
+    if kind == "copilot" {
+        return Some(COPILOT_OCTICON);
+    }
     VENDORS.iter().position(|v| *v == kind).map(logo)
+}
+
+/// The `$logo` sidebar token each agent pane should carry: `Some` for a
+/// vendor with a logo, `None` for a pane that carries a stale one. Only panes
+/// whose token differs are returned.
+pub fn sidebar_changes(snapshot: &Value) -> Vec<(String, Option<char>)> {
+    let current = |holder: &Value| holder.get("tokens").get("logo").as_str().and_then(|t| t.chars().next());
+    let mut out: Vec<(String, Option<char>)> = Vec::new();
+    let mut wanted: Vec<&str> = Vec::new();
+    for agent in snapshot.get("agents").list_or_empty() {
+        let Some(pane) = agent.get("pane_id").as_str() else { continue };
+        wanted.push(pane);
+        let logo = logo_for(agent.get("agent").as_str());
+        let shown = current(agent).or_else(|| {
+            snapshot.get("panes").list_or_empty().iter().find(|p| p.get("pane_id").as_str() == Some(pane)).and_then(current)
+        });
+        if logo != shown {
+            out.push((pane.to_string(), logo));
+        }
+    }
+    for pane in snapshot.get("panes").list_or_empty() {
+        let Some(id) = pane.get("pane_id").as_str() else { continue };
+        if !wanted.contains(&id) && current(pane).is_some() {
+            out.push((id.to_string(), None));
+        }
+    }
+    out
 }
 
 #[cfg(test)]
@@ -179,6 +213,28 @@ mod tests {
 
     fn row(field_positions: BTreeMap<usize, Vec<usize>>) -> Row {
         Row { item: 0, positions: Vec::new(), field_positions }
+    }
+
+    #[test]
+    fn sidebar_changes_report_only_panes_whose_logo_differs() {
+        let snapshot = crate::pyjson::loads(
+            r#"{"agents": [
+                {"pane_id": "w1:p1", "agent": "copilot"},
+                {"pane_id": "w1:p2", "agent": "claude", "tokens": {"logo": "\ue1a0"}},
+                {"pane_id": "w1:p3", "agent": "claude", "tokens": {"logo": "\ue1ad"}},
+                {"pane_id": "w1:p4", "agent": "unknown-agent"}],
+              "panes": [{"pane_id": "w1:p1"}, {"pane_id": "w1:p5", "tokens": {"logo": "\ue1ad"}},
+                        {"pane_id": "w1:p6"}]}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            sidebar_changes(&snapshot),
+            vec![
+                ("w1:p1".to_string(), Some(COPILOT_OCTICON)),
+                ("w1:p3".to_string(), Some('\u{e1a0}')),
+                ("w1:p5".to_string(), None),
+            ]
+        );
     }
 
     #[test]
